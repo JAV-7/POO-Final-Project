@@ -8,7 +8,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * DriverManager class extends DriverFactory to store each pair in the map.
+ * DriverManager class extends DriverRegistry to store each pair in the map.
  * It is in charge of setting and closing connections.
  * Additionally, is the parent class for specific format driver behavior,
  * thus, it has abstract methods such as retrieveData, cloneDriver and.
@@ -18,7 +18,7 @@ import java.util.function.Predicate;
  * and losing connectivity.
  * DriverManager uses generics, as each driver manages formats in a different way.
  */
-public abstract class DriverManager<T> extends DriverFactory implements CRUDOperations{
+public abstract class DriverManager<T> extends DriverRegistry implements CRUDOperations{
 
 	/**
 	 * Both source and FileFormat are protected, as subclasses require access
@@ -30,25 +30,39 @@ public abstract class DriverManager<T> extends DriverFactory implements CRUDOper
 	//Both functional interfaces are useful to check  setConnection methods.
 	private Function<String, Path> getPath= Paths::get;
 	private Predicate<Path> pathExists = Files::exists;
-	
+
 	public DriverManager() {
 		super();
 	}
 	
+	/**
+	 * DriverManager()
+	 * @param source
+	 */
 	public DriverManager(String source) {
 		setConnection(source, FileFormat.determineFormat(source));
 	}
 	
+	/**
+	 * DriverManager()
+	 * @param source
+	 * @param format
+	 */
 	public DriverManager(String source, FileFormat format) {
 		setConnection(source, format);
 	}
 	
+	/**
+	 * connectToSource()
+	 * @param source
+	 * @param format
+	 */
 	private void connectToSource(String source, FileFormat format) {
 		if (!DRIVERS.containsKey(source)) { //If drivers do not have source, then it will put the connection
 			try {
 				this.format = format;
 				this.source = source;
-				DRIVERS.put(source, retrieveData(format));
+				DriverRegistry.addDriver(source, retrieveData(format));
 			} catch (DriverException e) {
 				System.err.println(DriverExceptionsCodes.FILE);
 			}
@@ -57,6 +71,10 @@ public abstract class DriverManager<T> extends DriverFactory implements CRUDOper
 	}
 
 
+	/**
+	 * setConnection()
+	 * @param source
+	 */
 	public void setConnection(String source) {
 		Path path = Paths.get(source);
 		if (!Files.exists(path)) System.err.println("The specified path " + source + " is nonexistent. Check the correct name.");
@@ -64,27 +82,42 @@ public abstract class DriverManager<T> extends DriverFactory implements CRUDOper
 	    connectToSource(source, format);
 	}
 
+	/**
+	 * setConnection()
+	 * @param source
+	 * @param format
+	 */
 	public void setConnection(String source, FileFormat format) {
 		Path path = Paths.get(source);
 		if (!Files.exists(path)) System.err.println("The specified path " + source + " is nonexistent. Check the correct name.");
 	    connectToSource(source, format); 
 	}
+	
+	/**
+	 * closeConnection()
+	 */
 	public void closeConnection(){
-		if(DriverFactory.DRIVERS.containsKey(this.source)) {
-			DriverFactory.DRIVERS.remove(this.source);
+		if(DriverRegistry.DRIVERS.containsKey(this.source)) {
+			DriverRegistry.removeDriver(this.source);
 		}
 		else System.err.println(DriverExceptionsCodes.PATH);
 	}
 	
+	/**
+	 * getTable()
+	 * @return T
+	 */
 	@SuppressWarnings("unchecked")
 	public T getTable() {
-		return (T) DriverFactory.DRIVERS.get(this.source);
+		return (T) DriverRegistry.DRIVERS.get(this.source);
 	}
 	
 	/**
+	 * clone()
 	 * Due to files having different structures, clone() calls to an abstract 
 	 * method in which each driver class compares the content of one file to
 	 * the other.
+	 * @return Object
 	 */
 	@Override
 	public Object clone() { 
@@ -94,7 +127,7 @@ public abstract class DriverManager<T> extends DriverFactory implements CRUDOper
 	        return null;
 	    }
 
-	    /** Generate a new file name
+	    /* Generate a new file name
 	     * (\\.[^.]+)?$ means:
 	     * \\. = "."
 	     * [^.]+ = whatever comes after the period
@@ -119,12 +152,27 @@ public abstract class DriverManager<T> extends DriverFactory implements CRUDOper
 	    return this.cloneDriver(newPath.toString());
 	}
 	
+	/**
+	 * updateAndWrite()
+	 * @param table
+	 */
 	protected void updateAndWrite(T table) {
-	    DriverFactory.DRIVERS.replace(this.source, table);
+	    DriverRegistry.DRIVERS.replace(this.source, table);
 	    write();
 	}
 	
+	/**
+	 * retrieveData()
+	 * @param format
+	 * @return T
+	 * @throws DriverException
+	 */
 	protected abstract T retrieveData(FileFormat format) throws DriverException;
+	/**
+	 * cloneDriver()
+	 * @param newSource
+	 * @return driverManager<T>
+	 */
 	protected abstract DriverManager<T> cloneDriver(String newSource);
 	protected abstract void write();
 }
